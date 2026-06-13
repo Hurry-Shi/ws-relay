@@ -1,21 +1,20 @@
-import asyncio, struct, os, sys
+import asyncio, os, sys, urllib.parse
 import websockets
 
 AUTH_TOKEN = "8b417e59a39abfea9c4eea850ad362eb"
 
 async def handle(ws):
     try:
-        data = await asyncio.wait_for(ws.recv(), timeout=10)
-        # 格式: [1 byte auth_len][auth][1 byte host_len][host][2 bytes port]
-        pos = 0
-        auth_len = data[pos]; pos += 1
-        auth = data[pos:pos+auth_len].decode(); pos += auth_len
-        if auth != AUTH_TOKEN:
-            await ws.close(4001, "Bad auth")
+        # 从路径参数获取目标
+        path = ws.request.path if hasattr(ws, 'request') else ws.path
+        qs = path.split('?',1)[1] if '?' in path else ''
+        params = urllib.parse.parse_qs(qs)
+        host = params.get('host', [None])[0]
+        port = int(params.get('port', ['443'])[0])
+        
+        if not host:
+            await ws.close(4000, "Missing host")
             return
-        host_len = data[pos]; pos += 1
-        host = data[pos:pos+host_len].decode(); pos += host_len
-        port = struct.unpack('!H', data[pos:pos+2])[0]
         
         print(f"Relay: {host}:{port}", flush=True)
         reader, writer = await asyncio.open_connection(host, port)
