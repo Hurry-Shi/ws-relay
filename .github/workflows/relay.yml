@@ -1,0 +1,28 @@
+name: WS Relay
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Download cloudflared
+        run: |
+          curl -sL -o cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared.deb
+      - name: Start relay and tunnel
+        run: |
+          python3 relay.py &
+          sleep 2
+          cloudflared tunnel --url http://localhost:8080 2>&1 | tee /tmp/cf.log &
+          sleep 15
+          grep -oP 'https://[a-z-]+\.trycloudflare\.com' /tmp/cf.log | head -1
+          wait
